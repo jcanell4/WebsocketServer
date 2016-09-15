@@ -1,28 +1,12 @@
 <?php
-//ALERTA[Xavi] Afegits
-if (!defined("DOKU_INC")) {
-    define('DOKU_INC', dirname(__FILE__) . '/../../../../');
-}
-if (!defined('DOKU_PLUGIN')) {
-    define('DOKU_PLUGIN', DOKU_INC . 'lib/plugins/');
-}
-
-if (!defined('WIKI_IOC_MODEL')) {
-    define('WIKI_IOC_MODEL', DOKU_INC . "lib/plugins/wikiiocmodel/");
-}
-
-require_once DOKU_INC . 'inc/init.php'; // ALERTA[avi] És necessari?
-require_once DOKU_PLUGIN . 'wikiiocmodel/persistence/BasicPersistenceEngine.php';
-require_once DOKU_PLUGIN . "wikiiocmodel/datamodel/WebsocketNotifyModel.php";
-require_once DOKU_PLUGIN . "wikiiocmodel/WikiIocInfoManager.php";
-
-// ALERTA[Xavi] Fi afegits
 
 //require_once('./daemonize.php');
-require_once('./users.php');
+require_once('./WebSocketUser.php');
 
 abstract class WebSocketServer
 {
+    const PID_FILE = "server.pid";
+    const ERROR_LOG_FILE = "error.log";
 
     protected $userClass = 'WebSocketUser'; // redefine this if you want a custom user class.  The custom user class should inherit from WebSocketUser.
     protected $maxBufferSize;
@@ -35,23 +19,82 @@ abstract class WebSocketServer
     protected $headerSecWebSocketProtocolRequired = false;
     protected $headerSecWebSocketExtensionsRequired = false;
 
-    //ALERTA[Xavi] Afegit
-    private $notifyModel;
 
     function __construct($addr, $port, $bufferLength = 2048)
+    {
+        if ($this->serverIsRunning()) {
+//            $this->logError("El server ja està funcionant"); // No cal registrar-lo com error perquè s'intentarà enxegar el server cada vegada que un client hagi de connectar
+            exit("Server already running\n");
+        } else {
+            $this->startServer($addr, $port, $bufferLength);
+        }
+
+
+    }
+
+    protected function startServer($addr, $port, $bufferLength)
     {
         $this->maxBufferSize = $bufferLength;
         $this->master = socket_create(AF_INET, SOCK_STREAM, SOL_TCP) or die("Failed: socket_create()");
         socket_set_option($this->master, SOL_SOCKET, SO_REUSEADDR, 1) or die("Failed: socket_option()");
-        socket_bind($this->master, $addr, $port) or die("Failed: socket_bind()");
-        socket_listen($this->master, 20) or die("Failed: socket_listen()");
-        $this->sockets['m'] = $this->master;
-        $this->stdout("Server started\nListening on: $addr:$port\nMaster socket: " . $this->master);
+
+        if (@socket_bind($this->master, $addr, $port) /*or die("Failed: socket_bind()")*/) {
+            socket_listen($this->master, 20) or die("Failed: socket_listen()");
+            $this->sockets['m'] = $this->master;
+            $this->stdout("Server started\nListening on: $addr:$port\nMaster socket: " . $this->master);
+            file_put_contents(self::PID_FILE, getmypid());
+
+        } else {
+            $errorMessage = posix_strerror(socket_last_error($this->master));
+            $this->logError($errorMessage);
+
+            // OPCIO 1: No es fa res
+            //  exit("Error: " . $errorMessage . "\n");
+
+            // OPCIO 2: Es mata el process (si es PHP i està escoltant pel port) i es reinicia el servidor
+            $this->killRunningServerByPort($port);
+            $this->startServer($addr, $port, $bufferLength);
+        }
+    }
+
+    public function logError($error)
+    {
+        date_default_timezone_set('UTC');
+        $errorMsg = date('Y-m-d H:i:s') . ' ' . $error . "\n";
+        file_put_contents(self::ERROR_LOG_FILE, $errorMsg, FILE_APPEND);
+    }
+
+    /**
+     * Aquest mètode cerca és el primer procès PHP escoltant pel port indicat i el tanca
+     * @param $port
+     */
+    protected function killRunningServerByPort($port)
+    {
+        $pid = shell_exec('lsof -i :' . $port . ' | grep ^php.*\(LISTEN\)$ | grep "[[:digit:]]\{3,6\}" -o| head -1');
+//        echo "killing pid:..." . $pid . " port: " . $port . "\n";
+
+        $this->killRunningServerByPID($pid);
+
+    }
+
+    protected function killRunningServerByPID($pid)
+    {
+        if ($pid) {
+            posix_kill($pid, 9);
+        }
+    }
+
+    private function serverIsRunning()
+    {
+        // Carregar el PID del fitxer
+        $pid = @file_get_contents(self::PID_FILE);
+
+        if (!$pid) {
+            return false;
+        }
+        return posix_getpgid($pid);
 
 
-        //ALERTA[Xavi] Afegit
-        // Instanciem un DokuNotifyModel
-        $this->notifyModel = new WebsocketNotifyModel(new BasicPersistenceEngine());
     }
 
     abstract protected function process($user, $message); // Called immediately when the data is recieved.
@@ -64,63 +107,6 @@ abstract class WebSocketServer
     {
         // Override to handle a connecting user, after the instance of the User is created, but before
         // the handshake has completed.
-    }
-
-    //ALERTA[Xavi] Modificat
-    protected function send($user, $message)
-    {
-        echo $message;
-
-        // Comprovem els mots
-        $mots = explode(" ", $message);
-
-        $command = array_shift($mots);
-
-        if ($command === 'get') {
-
-            $message = $this->getting($mots);
-        } else if ($command === 'add') {
-            $message = $this->adding($mots);
-        }
-
-
-        if ($user->handshake) {
-            $message = $this->frame($message, $user);
-            $result = @socket_write($user->socket, $message, strlen($message));
-        } else {
-            // User has not yet performed their handshake.  Store for sending later.
-            $holdingMessage = array('user' => $user, 'message' => $message);
-            $this->heldMessages[] = $holdingMessage;
-        }
-
-        var_dump($message);
-    }
-
-    //ALERTA[Xavi] Afegit
-    private function getting($mots)
-    {
-        // TODO[Xavi] carregar el DokuNotifyModel i fer un popMessages(false) per no esborrar
-        $userId = $mots[0];
-
-        $result = json_encode($this->notifyModel->popNotifications($userId));
-
-        return $result;
-    }
-
-    //ALERTA[Xavi] Afegit
-    private function adding($mots)
-    {
-        // TODO[Xavi] carregar el DokuNotifyModel i fer un add() per afegir missatge
-
-        $text = $mots[0];
-        $receiverId =$mots[1];
-
-        // TODO[Xavi] s'hauria de refinar la descomposició dels mots per poder utilitzar els arrays
-        $params = [];
-        $senderId = WikiIocInfoManager::getInfo('userinfo')['name'];
-
-        $this->notifyModel->notifyToFrom($text, $receiverId, $params, $senderId);
-        return 'Enviat OK';
     }
 
 
