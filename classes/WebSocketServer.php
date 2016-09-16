@@ -1,7 +1,6 @@
 <?php
 
-//require_once('./daemonize.php');
-require_once('./WebSocketUser.php');
+require_once('WebSocketUser.php');
 
 abstract class WebSocketServer
 {
@@ -208,7 +207,15 @@ abstract class WebSocketServer
 
     protected function connect($socket)
     {
-        $user = new $this->userClass(uniqid('u'), $socket);
+        $user = new $this->userClass(uniqid('u'), $socket); // Usuari temporal
+        $user->authenticated = false;
+
+
+
+
+
+
+
         $this->users[$user->id] = $user;
         $this->sockets[$user->id] = $socket;
         $this->connecting($user);
@@ -347,6 +354,17 @@ abstract class WebSocketServer
     protected function processExtensions($extensions)
     {
         return ""; // return either "Sec-WebSocket-Extensions: SelectedExtensions\r\n" or return an empty string.
+    }
+
+    protected function getUserById($id)
+    {
+        return $this->users[$id];
+//        foreach ($this->users as $user) {
+//            if ($user->id == $id) {
+//                return $user;
+//            }
+//        }
+//        return null;
     }
 
     protected function getUserBySocket($socket)

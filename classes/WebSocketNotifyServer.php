@@ -2,7 +2,7 @@
 
 //ALERTA[Xavi] Afegits
 if (!defined("DOKU_INC")) {
-    define('DOKU_INC', dirname(__FILE__) . '/../../../../');
+    define('DOKU_INC', dirname(__FILE__) . '/../../../../../');
 }
 if (!defined('DOKU_PLUGIN')) {
     define('DOKU_PLUGIN', DOKU_INC . 'lib/plugins/');
@@ -19,26 +19,132 @@ require_once DOKU_PLUGIN . "wikiiocmodel/WikiIocInfoManager.php";
 
 // ALERTA[Xavi] Fi afegits
 
-require_once('./WebSocketServer.php');
+require_once('WebSocketServer.php');
 
 
 class WebSocketNotifyServer extends WebSocketServer
 {
+    // PROTOCOL
+    const AUTH = 'AUTH';
+    const SEND_TO = 'SEND_TO';
+
+
+    const DEFAULT_TYPE = 'info';
+    const DEFAULT_SENDER= 'system';
+
+    const WARNING_TYPE = 'warning';
+
     //ALERTA[Xavi] Afegit
     private $notifyModel;
 
-    public function __construct() {
-        $port = WikiGlobalConfig::getConf('notifier_ws_port', 'wikiiocmodel');
-        $addr = WikiGlobalConfig::getConf('notifier_ws_ip', 'wikiiocmodel');
-
-        parent::__construct($addr, $port);
-    }
 
     //protected $maxBufferSize = 1048576; //1MB... overkill for an echo server, but potentially plausible for other applications.
 
     protected function process($user, $message)
     {
-        $this->send($user, $message);
+        $data = json_decode($message, true);
+
+//        echo "Està autenticat? (" .$user->authenticated . ") [".$user->id."]\n";
+
+        // L'usuari no està autenticat i el missatge es d'autenticacio
+        if (!$user->authenticated && $data['command'] = self::AUTH) {
+
+            // TODO[Xavi] Comprovar la autenticació, si es correcta assignar el id al usuari
+            unset($this->users[$user->id]); // Eliminem la referència temporal de l'array
+            $user->id = $data['user'];
+            $user->authenticated = true;
+            $this->users[$user->id] = $user; // Ho afegim amb la nova ID
+
+            $this->send($user, 'Autenticació correcta. Benvingut ' . $user->id); // TODO: Canviar per missatge de confirmació de connexió amb éxit pel frontend
+
+            $previousNotifications = $this->notifyModel->popNotifications ($user->id);
+
+
+            // TODO: recuperar tots els missatges del blackboard i enviar-los pel socket
+            if ($previousNotifications) {
+                echo "Trobades notificacions previes: \n";
+                print_r($previousNotifications);
+                $this->send($user, json_encode($previousNotifications));
+            }
+
+
+
+
+            $oldUser = $this->getUserById($user->id);
+            if ($oldUser && $oldUser != $user) {
+                // Es troba aquest usuari ja connectat? Desconnectar l'anterior
+                $this->send($oldUser, 'Desconnectat. Iniciada sessió en altre dispositiu');
+                $this->disconnect($oldUser->socket, true, 111);
+            }
+
+
+            // TODO: Si no és correcte desconnectar al client
+//            $this->send($user, 'Error d\'autenticació');
+//            $this->disconnect($user->socket, true, 111);
+
+
+        }
+
+        // O ja estava autenticat, o s'acaba d'autenticar
+        if ($user->authenticated) {
+
+            switch ($data['command']) {
+
+                case self::AUTH:
+                    // Ja ha d'estar ressolt en aquest punt
+                    break;
+
+                //    public function notifyMessageToFrom($text, $receiverId, $senderId = NULL)
+                //    public function notifyTo($data, $receiverId, $type, $id=NULL)
+                //    public function popNotifications($userId)
+                //    public function close($userId) // Aquest cas no es donarà, la desconnexió es fa pel socket
+
+                case self::SEND_TO:
+                    // TODO: Adaptar el format al que s'envia com a resposta JSON
+                    echo "Ejecutando SEND_TO: " . $data['receiverId'] . " data: " . $data['data'] . "\n";
+
+
+                    $receiver = $this->getUserById($data['receiverId']);
+
+                    $message = [];
+                    // El receptor està connectat al server
+                    if ($receiver) {
+                        echo "Usuario conectado...";
+
+                        $message['data'] = $data['data'];
+                        $message['type'] = $data['type'] ? $data['type'] : self::DEFAULT_TYPE;
+                        $message['sender'] = $user->id;
+                        $this->send($receiver, json_encode($message));
+                    } else {
+                        //TODO: Enviar el missatge al sistema de notificacions timed, per recuperar-las quan es connecti
+                        echo "No s'ha trobat al user " . $data['receiverId'] . ". Guardant les dades al blackboard\n";
+                        $this->notifyModel->notifyMessageToFrom($data['data'], $data['receiverId'], $user->id); // ALERTA: comprovar quina es la diferència entre quest i notifyTo
+
+
+
+                        $message['data'] = 'L\'usuari no es troba connectat en aquests moments, s\'ha guardat el missatge';
+                        $message['type'] = self::WARNING_TYPE;
+                        $message['sender'] = self::DEFAULT_SENDER;
+
+                        $this->send($user, json_encode($message));
+
+                    }
+
+                    break;
+
+
+
+                default:
+                    echo "no se ha reconocido el command:" . $data['command'] . "\n";
+
+            }
+
+
+            // Envia el missatge al usuari (prova, s'hauria de fer un switch segons el command
+//            $this->send($user, $message);
+        }
+
+
     }
 
     protected function connected($user)
@@ -64,21 +170,9 @@ class WebSocketNotifyServer extends WebSocketServer
 
     }
 
+
     protected function send($user, $message)
     {
-        echo $message;
-
-        // Comprovem els mots
-        $mots = explode(" ", $message);
-
-        $command = array_shift($mots);
-
-        if ($command === 'get') {
-
-            $message = $this->getting($mots);
-        } else if ($command === 'add') {
-            $message = $this->adding($mots);
-        }
 
 
         if ($user->handshake) {
@@ -90,7 +184,7 @@ class WebSocketNotifyServer extends WebSocketServer
             $this->heldMessages[] = $holdingMessage;
         }
 
-        var_dump($message);
+//        var_dump($message);
     }
 
     private function getting($mots)

@@ -1,4 +1,5 @@
 <html><head><title>WebSocket</title>
+    <meta charset="UTF-8">
 <style type="text/css">
 html,body {
 	font:normal 0.9em arial,helvetica;
@@ -17,11 +18,15 @@ html,body {
 var socket;
 
 function init() {
-	var host = "ws://127.0.0.1:9090/echobot"; // SET THIS TO YOUR SERVER
+	var host = "ws://127.0.0.1:9090"; // SET THIS TO YOUR SERVER
 	try {
 		socket = new WebSocket(host);
 		log('WebSocket - status '+socket.readyState);
-		socket.onopen    = function(msg) { 
+		socket.onopen    = function(msg) {
+            authUser();
+
+
+
 							   log("Welcome - status "+this.readyState); 
 						   };
 		socket.onmessage = function(msg) { 
@@ -37,19 +42,49 @@ function init() {
 	$("msg").focus();
 }
 
+function authUser() {
+    var user = $('username').value;
+    var pass = $('password').value;
+
+    var msg = {
+        command: 'AUTH',
+        user: user,
+        pass: pass
+    };
+
+
+    try {
+        socket.send(JSON.stringify(msg));
+        log('Enviat: '+msg);
+    } catch(ex) {
+        log(ex);
+    }
+}
+
 function send(){
+
+
+
 	var txt,msg;
 	txt = $("msg");
 	msg = txt.value;
-	if(!msg) { 
+	if(!msg) {
 		alert("Message can not be empty"); 
 		return; 
 	}
 	txt.value="";
 	txt.focus();
+
+    var message = {
+        data: msg,
+        command: 'SEND_TO',
+        receiverId: $('receiverId').value
+    };
+
+
 	try { 
-		socket.send(msg); 
-		log('Sent: '+msg); 
+		socket.send(JSON.stringify(message));
+		log('Sent: '+message);
 	} catch(ex) { 
 		log(ex); 
 	}
@@ -61,6 +96,22 @@ function quit(){
 		socket=null;
 	}
 }
+
+function echo() {
+    var msg = {
+        command: 'SEND_TO',
+        data: 'Eco eco eco',
+        receiverId: $('username').value
+    };
+
+    try {
+        socket.send(JSON.stringify(msg));
+        log('Sent: '+msg);
+    } catch(ex) {
+        log(ex);
+    }
+}
+
 
 function reconnect() {
 	quit();
@@ -78,8 +129,13 @@ function onkey(event){ if(event.keyCode==13){ send(); } }
 <h3>WebSocket v2.00</h3>
 <div id="log"></div>
 <input id="msg" type="textbox" onkeypress="onkey(event)"/>
+<label>Username:</label><input type="text" id="username"/>
+<label>Password:</label><input type="password" id="password"/>
+
+<label>To:</label><input type="text" id="receiverId"/>
 <button onclick="send()">Send</button>
 <button onclick="quit()">Quit</button>
 <button onclick="reconnect()">Reconnect</button>
+<button onclick="echo()">Echo</button>
 </body>
 </html>
