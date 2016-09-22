@@ -77,7 +77,7 @@ function send(){
 
     var message = {
         data: msg,
-        command: 'SEND_TO',
+        command: 'NOTIFY_TO_FROM',
         receiverId: $('receiverId').value
     };
 
@@ -99,7 +99,7 @@ function quit(){
 
 function echo() {
     var msg = {
-        command: 'SEND_TO',
+        command: 'NOTIFY_TO',
         data: 'Eco eco eco',
         receiverId: $('username').value
     };
