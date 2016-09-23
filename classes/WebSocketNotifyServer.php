@@ -41,45 +41,54 @@ class WebSocketNotifyServer extends WebSocketServer
 
     //protected $maxBufferSize = 1048576; //1MB... overkill for an echo server, but potentially plausible for other applications.
 
+    private function isUserAuthenticated($user, $pass) {
+        $auth = $this->notifyModel->checkPass($user, $pass);
+        return $auth;
+    }
+
     protected function process($user, $message)
     {
         $data = json_decode($message, true);
-
-//        echo "Està autenticat? (" .$user->authenticated . ") [".$user->id."]\n";
 
         // L'usuari no està autenticat i el missatge es d'autenticacio
         if (!$user->authenticated && $data['command'] = self::AUTH) {
 
             // TODO[Xavi] Comprovar la autenticació, si es correcta assignar el id al usuari
-            unset($this->users[$user->id]); // Eliminem la referència temporal de l'array
-            $user->id = $data['user'];
-            $user->authenticated = true;
-            $this->users[$user->id] = $user; // Ho afegim amb la nova ID
 
-            $this->send($user, 'Autenticació correcta. Benvingut ' . $user->id); // TODO: Canviar per missatge de confirmació de connexió amb éxit pel frontend
+            if ($this->isUserAuthenticated($data['user'], $data['pass'])) {
 
-            $previousNotifications = $this->notifyModel->popNotifications($user->id);
+                unset($this->users[$user->id]); // Eliminem la referència temporal de l'array
+                $user->id = $data['user'];
+                $user->authenticated = true;
+                $this->users[$user->id] = $user; // Ho afegim amb la nova ID
+
+                $this->send($user, 'Autenticació correcta. Benvingut ' . $user->id); // TODO: Canviar per missatge de confirmació de connexió amb éxit pel frontend
+
+                $previousNotifications = $this->notifyModel->popNotifications($user->id);
 
 
-            // TODO: recuperar tots els missatges del blackboard i enviar-los pel socket
-            if ($previousNotifications) {
-                echo "Trobades notificacions previes: \n";
-                print_r($previousNotifications);
-                $this->send($user, json_encode($previousNotifications));
+                // TODO: recuperar tots els missatges del blackboard i enviar-los pel socket
+                if ($previousNotifications) {
+                    echo "Trobades notificacions previes: \n";
+                    print_r($previousNotifications);
+                    $this->send($user, json_encode($previousNotifications));
+                }
+
+
+                $oldUser = $this->getUserById($user->id);
+                if ($oldUser && $oldUser != $user) {
+                    // Es troba aquest usuari ja connectat? Desconnectar l'anterior
+                    $this->send($oldUser, 'Desconnectat. Iniciada sessió en altre dispositiu');
+                    $this->disconnect($oldUser->socket, true, 111);
+                }
+            }else {
+
+
+//             TODO: Si no és correcte desconnectar al client
+                $this->send($user, 'Error d\'autenticació');
+                $this->disconnect($user->socket, true, 111);
             }
 
-
-            $oldUser = $this->getUserById($user->id);
-            if ($oldUser && $oldUser != $user) {
-                // Es troba aquest usuari ja connectat? Desconnectar l'anterior
-                $this->send($oldUser, 'Desconnectat. Iniciada sessió en altre dispositiu');
-                $this->disconnect($oldUser->socket, true, 111);
-            }
-
-
-            // TODO: Si no és correcte desconnectar al client
-//            $this->send($user, 'Error d\'autenticació');
-//            $this->disconnect($user->socket, true, 111);
 
 
         }
