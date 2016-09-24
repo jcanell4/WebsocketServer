@@ -1,5 +1,11 @@
 <?php
-require_once('./classes/WebSocketNotifyServer.php');
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+
+require_once(realpath(dirname(__FILE__)) . '/classes/WebSocketNotifyServer.php');
+
+
 
 $addr = WikiGlobalConfig::getConf('notifier_ws_ip', 'wikiiocmodel');
 $port = WikiGlobalConfig::getConf('notifier_ws_port', 'wikiiocmodel');

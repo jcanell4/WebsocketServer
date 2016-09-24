@@ -22,7 +22,7 @@ abstract class WebSocketServer
     function __construct($addr, $port, $bufferLength = 2048)
     {
         if ($this->serverIsRunning()) {
-//            $this->logError("El server ja està funcionant"); // No cal registrar-lo com error perquè s'intentarà enxegar el server cada vegada que un client hagi de connectar
+            $this->logError("El server ja està funcionant"); // No cal registrar-lo com error perquè s'intentarà enxegar el server cada vegada que un client hagi de connectar
             exit("Server already running\n");
         } else {
             $this->startServer($addr, $port, $bufferLength);
@@ -48,7 +48,7 @@ abstract class WebSocketServer
             $this->logError($errorMessage);
 
             // OPCIO 1: No es fa res
-            //  exit("Error: " . $errorMessage . "\n");
+//              exit("Error: " . $errorMessage . "\n" . ' address: ' . $addr. ':' .$port);
 
             // OPCIO 2: Es mata el process (si es PHP i està escoltant pel port) i es reinicia el servidor
             $this->killRunningServerByPort($port);

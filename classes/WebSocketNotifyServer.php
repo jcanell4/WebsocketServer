@@ -115,7 +115,7 @@ class WebSocketNotifyServer extends WebSocketServer
 
                     // El receptor està connectat al server
                     if ($receiver) {
-                        echo "Usuario conectado...";
+                        echo "Usuari conectat...";
 
                         $message['data'] = $data['data'];
                         $message['type'] = $data['type'] ? $data['type'] : self::DEFAULT_TYPE;
@@ -220,5 +220,3 @@ class WebSocketNotifyServer extends WebSocketServer
     }
 
 }
-
-
