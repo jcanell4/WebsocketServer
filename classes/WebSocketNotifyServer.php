@@ -44,10 +44,7 @@ class WebSocketNotifyServer extends WebSocketServer
     // ALERTA Copiat per fer proves del auth.php. No es pot fer servir directament perquè surt del servidor si alguna autenticació falla
     private function auth_validateToken($token, $dokuCookie) {
         echo "Comprovant token " .$token . "\n";
-
-
         echo "Comprovant el token de la sessio " .$_SESSION[$dokuCookie]['auth']['token']. "\n";
-
         echo "DOKU_COOKIE:" . $dokuCookie . "\n";
 
         var_dump ($_SESSION[$dokuCookie]);
@@ -81,7 +78,7 @@ class WebSocketNotifyServer extends WebSocketServer
         var_dump(($_SESSION));
 
         if (!$this->auth_validateToken($token, $dokuCookie)) {
-            $this->logError("Token error");
+//            $this->logError("Token error");
             $auth = false;
         }
 
@@ -92,7 +89,7 @@ class WebSocketNotifyServer extends WebSocketServer
           $auth=false;
 
         } else if ($_SERVER['REMOTE_USER'] !== $user) {
-            $this->logError("L'usuari no correspon " . $_SERVER['REMOTE_USER'] . "\n");
+            $this->logError("L'usuari no correspon " . $_SERVER['REMOTE_USER'] . " != " . $user."\n");
             $auth = false;
         }
 

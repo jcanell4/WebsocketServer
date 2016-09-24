@@ -61,6 +61,7 @@ abstract class WebSocketServer
         date_default_timezone_set('UTC');
         $errorMsg = date('Y-m-d H:i:s') . ' ' . $error . "\n";
         file_put_contents(self::ERROR_LOG_FILE, $errorMsg, FILE_APPEND);
+        echo $error . "\n";
     }
 
     /**
