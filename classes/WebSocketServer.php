@@ -51,7 +51,7 @@ abstract class WebSocketServer
 //              exit("Error: " . $errorMessage . "\n" . ' address: ' . $addr. ':' .$port);
 
             // OPCIO 2: Es mata el process (si es PHP i està escoltant pel port) i es reinicia el servidor
-            $this->killRunningServerByPort($port);
+            self::killRunningServerByPort($port);
             $this->startServer($addr, $port, $bufferLength);
         }
     }
@@ -67,16 +67,16 @@ abstract class WebSocketServer
      * Aquest mètode cerca és el primer procès PHP escoltant pel port indicat i el tanca
      * @param $port
      */
-    protected function killRunningServerByPort($port)
+    public static function killRunningServerByPort($port)
     {
         $pid = shell_exec('lsof -i :' . $port . ' | grep ^php.*\(LISTEN\)$ | grep "[[:digit:]]\{3,6\}" -o| head -1');
 //        echo "killing pid:..." . $pid . " port: " . $port . "\n";
 
-        $this->killRunningServerByPID($pid);
+        self::killRunningServerByPID($pid);
 
     }
 
-    protected function killRunningServerByPID($pid)
+    protected static function killRunningServerByPID($pid)
     {
         if ($pid) {
             posix_kill($pid, 9);

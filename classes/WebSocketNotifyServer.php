@@ -41,8 +41,65 @@ class WebSocketNotifyServer extends WebSocketServer
 
     //protected $maxBufferSize = 1048576; //1MB... overkill for an echo server, but potentially plausible for other applications.
 
-    private function isUserAuthenticated($user, $pass) {
-        $auth = $this->notifyModel->checkPass($user, $pass);
+    // ALERTA Copiat per fer proves del auth.php. No es pot fer servir directament perquè surt del servidor si alguna autenticació falla
+    private function auth_validateToken($token, $dokuCookie) {
+        echo "Comprovant token " .$token . "\n";
+
+
+        echo "Comprovant el token de la sessio " .$_SESSION[$dokuCookie]['auth']['token']. "\n";
+
+        echo "DOKU_COOKIE:" . $dokuCookie . "\n";
+
+        var_dump ($_SESSION[$dokuCookie]);
+
+        if(!$token || $token != $_SESSION[$dokuCookie]['auth']['token']) {
+            // bad token
+//            http_status(401);
+            print "Invalid auth token - maybe the session timed out\n";
+//            unset($_SESSION[DOKU_COOKIE]['auth']['token']); // no second chance
+//            exit;
+            return false;
+        }
+        // still here? trust the session data
+        global $USERINFO;
+        $_SERVER['REMOTE_USER'] = $_SESSION[$dokuCookie]['auth']['user'];
+        $USERINFO               = $_SESSION[$dokuCookie]['auth']['info'];
+        return true;
+    }
+
+
+    private function isUserAuthenticated($user, $token, $session, $dokuCookie)
+    {
+        $auth = true;
+
+        echo 'Autenticant Usuari ' . $user;
+        echo 'Sessió ' . $session;
+
+        session_id($session);
+        session_start();
+
+        var_dump(($_SESSION));
+
+        if (!$this->auth_validateToken($token, $dokuCookie)) {
+            $this->logError("Token error");
+            $auth = false;
+        }
+
+
+
+        if (!isset($_SERVER['REMOTE_USER'])) {
+            $this->logError("No està definit el remote user.\n");
+          $auth=false;
+
+        } else if ($_SERVER['REMOTE_USER'] !== $user) {
+            $this->logError("L'usuari no correspon " . $_SERVER['REMOTE_USER'] . "\n");
+            $auth = false;
+        }
+
+        session_write_close();
+
+        echo 'Fi de l\'autenticació: ' . $auth;
+
         return $auth;
     }
 
@@ -55,7 +112,7 @@ class WebSocketNotifyServer extends WebSocketServer
 
             // TODO[Xavi] Comprovar la autenticació, si es correcta assignar el id al usuari
 
-            if ($this->isUserAuthenticated($data['user'], $data['pass'])) {
+            if ($this->isUserAuthenticated($data['user'], $data['token'], $data['session'], $data['doku_cookie'])) {
 
                 unset($this->users[$user->id]); // Eliminem la referència temporal de l'array
                 $user->id = $data['user'];
@@ -81,14 +138,13 @@ class WebSocketNotifyServer extends WebSocketServer
                     $this->send($oldUser, 'Desconnectat. Iniciada sessió en altre dispositiu');
                     $this->disconnect($oldUser->socket, true, 111);
                 }
-            }else {
+            } else {
 
 
 //             TODO: Si no és correcte desconnectar al client
                 $this->send($user, 'Error d\'autenticació');
                 $this->disconnect($user->socket, true, 111);
             }
-
 
 
         }
