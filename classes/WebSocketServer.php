@@ -137,6 +137,9 @@ abstract class WebSocketServer
         }
     }
 
+    protected abstract function looping (); //TODO[Xavi] Cercar un nom més adient!
+
+
     /**
      * Main processing loop
      */
@@ -203,6 +206,7 @@ abstract class WebSocketServer
                     }
                 }
             }
+            $this->looping();
         }
     }
 

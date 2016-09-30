@@ -47,7 +47,7 @@ class WebSocketNotifyServer extends WebSocketServer
         echo "Comprovant el token de la sessio " .$_SESSION[$dokuCookie]['auth']['token']. "\n";
         echo "DOKU_COOKIE:" . $dokuCookie . "\n";
 
-        var_dump ($_SESSION[$dokuCookie]);
+//        var_dump ($_SESSION[$dokuCookie]);
 
         if(!$token || $token != $_SESSION[$dokuCookie]['auth']['token']) {
             // bad token
@@ -72,10 +72,10 @@ class WebSocketNotifyServer extends WebSocketServer
         echo 'Autenticant Usuari ' . $user;
         echo 'Sessió ' . $session;
 
-        session_id($session);
-        session_start();
+        @session_id($session);
+        @session_start();
 
-        var_dump(($_SESSION));
+//        var_dump(($_SESSION));
 
         if (!$this->auth_validateToken($token, $dokuCookie)) {
 //            $this->logError("Token error");
@@ -116,9 +116,12 @@ class WebSocketNotifyServer extends WebSocketServer
                 $user->authenticated = true;
                 $this->users[$user->id] = $user; // Ho afegim amb la nova ID
 
+
                 $this->send($user, 'Autenticació correcta. Benvingut ' . $user->id); // TODO: Canviar per missatge de confirmació de connexió amb éxit pel frontend
 
                 $previousNotifications = $this->notifyModel->popNotifications($user->id);
+
+
 
 
                 // TODO: recuperar tots els missatges del blackboard i enviar-los pel socket
@@ -272,4 +275,40 @@ class WebSocketNotifyServer extends WebSocketServer
 //        var_dump($message);
     }
 
+    /**
+     * Aqui es troben totes les accions que es realitzen a cada iteració del bucle principal del servidor
+     * @override
+     */
+    protected function looping () {
+        $currentTime = microtime(true);
+
+//        return;
+
+        if (!$this->lastBlackboardCheck || $currentTime-$this->lastBlackboardCheck>5) { // TODO[Xavi] nombre màgic, delay en les notificacions del servidor
+            echo "refreshing blackboard " . $currentTime-$this->lastBlackboardCheck ."\n";
+            $this->lastBlackboardCheck = $currentTime;
+
+            foreach ($this->users as $user) {
+                $pendingNotifications = $this->notifyModel->popNotifications($user->id);
+
+
+
+//                echo "Enviant notificacions a: " . $user->id . ' ' . json_encode($pendingNotifications) . "\n";
+                echo "Enviant notificacions a: " . $user->id . "\n";
+                var_dump($pendingNotifications);
+
+                if ($pendingNotifications) {
+//                echo "Enviant notificacions a: " . $user->id . json_encode($pendingNotifications);
+
+                    $this->send($user, json_encode($pendingNotifications));
+                }
+
+            }
+
+        }
+    }
+
+
+
+    private $lastBlackboardCheck;
 }
