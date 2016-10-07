@@ -18,6 +18,8 @@ abstract class WebSocketServer
     protected $headerSecWebSocketProtocolRequired = false;
     protected $headerSecWebSocketExtensionsRequired = false;
 
+    protected $tickTime;
+
 
     function __construct($addr, $port, $bufferLength = 2048)
     {
@@ -27,6 +29,8 @@ abstract class WebSocketServer
         } else {
             $this->startServer($addr, $port, $bufferLength);
         }
+
+        $this->tickTime = WikiGlobalConfig::getConf('notifier_ws_tick');
 
 
     }
@@ -137,8 +141,6 @@ abstract class WebSocketServer
         }
     }
 
-    protected abstract function looping (); //TODO[Xavi] Cercar un nom més adient!
-
 
     /**
      * Main processing loop
@@ -206,7 +208,6 @@ abstract class WebSocketServer
                     }
                 }
             }
-            $this->looping();
         }
     }
 

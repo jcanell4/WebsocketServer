@@ -42,14 +42,15 @@ class WebSocketNotifyServer extends WebSocketServer
     //protected $maxBufferSize = 1048576; //1MB... overkill for an echo server, but potentially plausible for other applications.
 
     // ALERTA Copiat per fer proves del auth.php. No es pot fer servir directament perquè surt del servidor si alguna autenticació falla
-    private function auth_validateToken($token, $dokuCookie) {
-        echo "Comprovant token " .$token . "\n";
-        echo "Comprovant el token de la sessio " .$_SESSION[$dokuCookie]['auth']['token']. "\n";
+    private function auth_validateToken($token, $dokuCookie)
+    {
+        echo "Comprovant token " . $token . "\n";
+        echo "Comprovant el token de la sessio " . $_SESSION[$dokuCookie]['auth']['token'] . "\n";
         echo "DOKU_COOKIE:" . $dokuCookie . "\n";
 
 //        var_dump ($_SESSION[$dokuCookie]);
 
-        if(!$token || $token != $_SESSION[$dokuCookie]['auth']['token']) {
+        if (!$token || $token != $_SESSION[$dokuCookie]['auth']['token']) {
             // bad token
 //            http_status(401);
             print "Invalid auth token - maybe the session timed out\n";
@@ -60,7 +61,7 @@ class WebSocketNotifyServer extends WebSocketServer
         // still here? trust the session data
         global $USERINFO;
         $_SERVER['REMOTE_USER'] = $_SESSION[$dokuCookie]['auth']['user'];
-        $USERINFO               = $_SESSION[$dokuCookie]['auth']['info'];
+        $USERINFO = $_SESSION[$dokuCookie]['auth']['info'];
         return true;
     }
 
@@ -83,13 +84,12 @@ class WebSocketNotifyServer extends WebSocketServer
         }
 
 
-
         if (!isset($_SERVER['REMOTE_USER'])) {
             $this->logError("No està definit el remote user.\n");
-          $auth=false;
+            $auth = false;
 
         } else if ($_SERVER['REMOTE_USER'] !== $user) {
-            $this->logError("L'usuari no correspon " . $_SERVER['REMOTE_USER'] . " != " . $user."\n");
+            $this->logError("L'usuari no correspon " . $_SERVER['REMOTE_USER'] . " != " . $user . "\n");
             $auth = false;
         }
 
@@ -120,8 +120,6 @@ class WebSocketNotifyServer extends WebSocketServer
                 $this->send($user, 'Autenticació correcta. Benvingut ' . $user->id); // TODO: Canviar per missatge de confirmació de connexió amb éxit pel frontend
 
                 $previousNotifications = $this->notifyModel->popNotifications($user->id);
-
-
 
 
                 // TODO: recuperar tots els missatges del blackboard i enviar-los pel socket
@@ -279,36 +277,35 @@ class WebSocketNotifyServer extends WebSocketServer
      * Aqui es troben totes les accions que es realitzen a cada iteració del bucle principal del servidor
      * @override
      */
-    protected function looping () {
+    protected function tick()
+    {
         $currentTime = microtime(true);
 
-//        return;
 
-        if (!$this->lastBlackboardCheck || $currentTime-$this->lastBlackboardCheck>5) { // TODO[Xavi] nombre màgic, delay en les notificacions del servidor
-            echo "refreshing blackboard " . $currentTime-$this->lastBlackboardCheck ."\n";
-            $this->lastBlackboardCheck = $currentTime;
 
-            foreach ($this->users as $user) {
+        foreach ($this->users as $user) {
+
+            if (!$user->nextBlackboardCheck || $user->nextBlackboardCheck < $currentTime) {
+
+
                 $pendingNotifications = $this->notifyModel->popNotifications($user->id);
 
 
-
-//                echo "Enviant notificacions a: " . $user->id . ' ' . json_encode($pendingNotifications) . "\n";
                 echo "Enviant notificacions a: " . $user->id . "\n";
-                var_dump($pendingNotifications);
+//                var_dump($pendingNotifications);
 
                 if ($pendingNotifications) {
-//                echo "Enviant notificacions a: " . $user->id . json_encode($pendingNotifications);
+//                        echo "Enviant notificacions a: " . $user->id . json_encode($pendingNotifications);
 
                     $this->send($user, json_encode($pendingNotifications));
                 }
 
+                $user->nextBlackboardCheck = $currentTime + $this->tickTime; // TODO[Xavi] nombre màgic, delay en les notificacions del servidor
             }
 
         }
+
     }
 
 
-
-    private $lastBlackboardCheck;
 }

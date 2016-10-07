@@ -18,6 +18,8 @@ class WebSocketUser
 
     public $lauthenticated = false;
 
+    public $nextBlackboardCheck;
+
     function __construct($id, $socket)
     {
         $this->id = $id;
